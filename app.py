@@ -5,7 +5,7 @@ from docx import Document
 import google.generativeai as genai
 
 # Page configuration
-st.set_page_config(page_title="Document Chatbot with Gemini (Free Tier)", layout="wide")
+st.set_page_config(page_title="Document Chatbot with Gemini 2.0 Flash", layout="wide")
 
 def list_available_models(api_key):
     """List all available models in the Gemini API"""
@@ -39,36 +39,20 @@ def initialize_gemini_api():
                 st.info("3. Get your API key from the settings")
                 return None
         
-        # List available models
+        # Configure the API
         genai.configure(api_key=api_key)
-        available_models = list_available_models(api_key)
         
-        if isinstance(available_models, str) and "Error" in available_models:
-            st.error(available_models)
-            return None
+        # Set the default model to Gemini 2.0 Flash
+        model_name = "models/gemini-2.0-flash"
         
-        st.session_state.available_models = available_models
+        # Save key to session state for current session only
+        st.session_state.temp_api_key = api_key
+        st.session_state.selected_model = model_name
         
-        # Create model selection dropdown
-        if "available_models" in st.session_state and st.session_state.available_models:
-            selected_model = st.selectbox(
-                "Select a Gemini model:", 
-                st.session_state.available_models,
-                index=0 if st.session_state.available_models else 0
-            )
-            
-            if selected_model:
-                # Save key to session state for current session only
-                st.session_state.temp_api_key = api_key
-                st.session_state.selected_model = selected_model
-                
-                # Get model name from full path
-                model_name = selected_model.split('/')[-1] if '/' in selected_model else selected_model
-                
-                return genai.GenerativeModel(model_name)
-        else:
-            st.error("No models available. Please check your API key.")
-            return None
+        st.success(f"Using model: Gemini 2.0 Flash")
+        
+        # Create the model instance
+        return genai.GenerativeModel(model_name)
             
     except Exception as e:
         st.error(f"Error initializing Gemini API: {str(e)}")
@@ -97,7 +81,7 @@ def extract_text(file):
         st.error(f"Error extracting text: {str(e)}")
         return None
 
-def find_relevant_chunk(context, question, chunk_size=10000, overlap=1000):
+def find_relevant_chunk(context, question, chunk_size=12000, overlap=1000):
     """Find the most relevant chunk of text for the question to fit in token limits"""
     if not context or len(context) <= chunk_size:
         return context
@@ -137,35 +121,42 @@ def generate_response(model, question, context):
     Answer:"""
     
     try:
-        response = model.generate_content(prompt)
+        generation_config = {
+            "temperature": 0.2,
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 1024,
+        }
+        
+        response = model.generate_content(prompt, generation_config=generation_config)
         return response.text
     except Exception as e:
         return f"Error generating response: {str(e)}"
 
 def display_gemini_limitations():
-    """Display information about Gemini free tier limitations"""
-    with st.expander("ℹ️ About Gemini Free Tier Limitations"):
+    """Display information about Gemini 2.0 Flash limitations"""
+    with st.expander("ℹ️ About Gemini 2.0 Flash"):
         st.markdown("""
-        ### Gemini Free Tier Limitations
+        ### Gemini 2.0 Flash
+        
+        **Features:**
+        - Gemini 2.0 Flash is an optimized model designed for faster responses and lower latency
+        - It has improved response quality compared to earlier free tier models
+        - Expanded context window allowing for processing larger documents
         
         **Token Limits:**
         - **What are tokens?** Tokens are pieces of text that the model processes. They're roughly 4 characters or ¾ of a word in English.
-        - **Free tier limit:** 60 requests per minute and a monthly quota (typically around 60K input tokens/month)
-        - **Context window:** Up to 30K tokens per request (approximately 20-25 pages of text)
-        
-        **Other Limitations:**
-        - Rate limiting may occur during high demand
-        - Some advanced features might be restricted
-        - The model has a knowledge cutoff date and doesn't know about events after that
+        - **Free tier limit:** Quotas apply based on your Google AI Studio account
+        - **Context window:** Up to 1 million tokens (significantly higher than previous models)
         
         **Best Practices:**
         - Provide concise, specific questions
         - For large documents, the app will automatically find the most relevant sections
-        - Free tier is suitable for personal projects and learning
+        - The model may hallucinate or make mistakes on complex reasoning tasks
         """)
 
 def main():
-    st.title("📄 Document Chatbot with Gemini (Free Tier)")
+    st.title("📄 Document Chatbot with Gemini 2.0 Flash")
     st.write("Upload a PDF, DOCX, or TXT file and ask questions about its content!")
     
     # Display Gemini limitations
@@ -175,10 +166,8 @@ def main():
     model = None
     if "temp_api_key" in st.session_state and "selected_model" in st.session_state:
         genai.configure(api_key=st.session_state.temp_api_key)
-        # Get model name from full path
-        model_name = st.session_state.selected_model.split('/')[-1] if '/' in st.session_state.selected_model else st.session_state.selected_model
-        model = genai.GenerativeModel(model_name)
-        st.success(f"Using model: {model_name}")
+        model = genai.GenerativeModel(st.session_state.selected_model)
+        st.success(f"Using model: Gemini 2.0 Flash")
     else:
         model = initialize_gemini_api()
     
@@ -208,10 +197,6 @@ def main():
     # Display chat interface if document is processed
     if st.session_state.get("context"):
         st.write(f"Chatting about: **{st.session_state.get('file_name', 'Document')}**")
-        
-        # Display token usage estimate
-        if len(st.session_state.context) > 30000:
-            st.warning(f"This document is large and will be processed in chunks due to token limitations.")
         
         # Display chat history
         for message in st.session_state.messages:
