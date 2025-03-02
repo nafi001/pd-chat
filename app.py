@@ -14,7 +14,7 @@ def initialize_gemini_api():
         if "GEMINI_API_KEY" in st.secrets:
             api_key = st.secrets["GEMINI_API_KEY"]
             genai.configure(api_key=api_key)
-            return genai.GenerativeModel('gemini-1.0-pro')  # Free tier model
+            return genai.GenerativeModel('gemini-pro')  # Correct model name
         else:
             st.warning("⚠️ Gemini API Key not found in secrets!")
             
@@ -28,7 +28,7 @@ def initialize_gemini_api():
                 genai.configure(api_key=api_key)
                 # Save key to session state for current session only
                 st.session_state.temp_api_key = api_key
-                return genai.GenerativeModel('gemini-1.0-pro')  # Free tier model
+                return genai.GenerativeModel('gemini-pro')  # Correct model name
             else:
                 st.info("You need a Google AI Studio account to get a free Gemini API key.")
                 st.info("1. Visit https://aistudio.google.com/")
@@ -140,7 +140,7 @@ def main():
     model = None
     if "temp_api_key" in st.session_state:
         genai.configure(api_key=st.session_state.temp_api_key)
-        model = genai.GenerativeModel('gemini-1.0-pro')
+        model = genai.GenerativeModel('gemini-pro')  # Correct model name
     else:
         model = initialize_gemini_api()
     
