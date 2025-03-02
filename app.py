@@ -34,7 +34,8 @@ def generate_response(question, context):
     
     response = model.generate_content(prompt)
     return response.text
-
+import streamlit as st
+st.write("API Key (partial):", st.secrets["GEMINI_API_KEY"][:4] + "****")
 # Streamlit UI
 st.title("📄 Document Chatbot with Gemini")
 st.write("Upload a PDF, DOCX, or TXT file and ask questions!")
