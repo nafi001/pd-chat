@@ -7,14 +7,22 @@ import google.generativeai as genai
 # Page configuration
 st.set_page_config(page_title="Document Chatbot with Gemini (Free Tier)", layout="wide")
 
+def list_available_models(api_key):
+    """List all available models in the Gemini API"""
+    try:
+        genai.configure(api_key=api_key)
+        models = genai.list_models()
+        model_names = [model.name for model in models]
+        return model_names
+    except Exception as e:
+        return f"Error listing models: {str(e)}"
+
 def initialize_gemini_api():
     """Initialize the Gemini API safely"""
     try:
         # Check if API key is in Streamlit secrets
         if "GEMINI_API_KEY" in st.secrets:
             api_key = st.secrets["GEMINI_API_KEY"]
-            genai.configure(api_key=api_key)
-            return genai.GenerativeModel('gemini-pro')  # Correct model name
         else:
             st.warning("⚠️ Gemini API Key not found in secrets!")
             
@@ -24,17 +32,44 @@ def initialize_gemini_api():
                 type="password"
             )
             
-            if api_key:
-                genai.configure(api_key=api_key)
-                # Save key to session state for current session only
-                st.session_state.temp_api_key = api_key
-                return genai.GenerativeModel('gemini-pro')  # Correct model name
-            else:
+            if not api_key:
                 st.info("You need a Google AI Studio account to get a free Gemini API key.")
                 st.info("1. Visit https://aistudio.google.com/")
                 st.info("2. Create a free account")
                 st.info("3. Get your API key from the settings")
                 return None
+        
+        # List available models
+        genai.configure(api_key=api_key)
+        available_models = list_available_models(api_key)
+        
+        if isinstance(available_models, str) and "Error" in available_models:
+            st.error(available_models)
+            return None
+        
+        st.session_state.available_models = available_models
+        
+        # Create model selection dropdown
+        if "available_models" in st.session_state and st.session_state.available_models:
+            selected_model = st.selectbox(
+                "Select a Gemini model:", 
+                st.session_state.available_models,
+                index=0 if st.session_state.available_models else 0
+            )
+            
+            if selected_model:
+                # Save key to session state for current session only
+                st.session_state.temp_api_key = api_key
+                st.session_state.selected_model = selected_model
+                
+                # Get model name from full path
+                model_name = selected_model.split('/')[-1] if '/' in selected_model else selected_model
+                
+                return genai.GenerativeModel(model_name)
+        else:
+            st.error("No models available. Please check your API key.")
+            return None
+            
     except Exception as e:
         st.error(f"Error initializing Gemini API: {str(e)}")
         return None
@@ -88,7 +123,7 @@ def find_relevant_chunk(context, question, chunk_size=10000, overlap=1000):
 def generate_response(model, question, context):
     """Generate answer using Gemini"""
     if not model:
-        return "API configuration error. Please check your API key."
+        return "API configuration error. Please check your API key and model selection."
     
     # Find relevant chunk to fit within model context limits
     relevant_context = find_relevant_chunk(context, question)
@@ -138,9 +173,12 @@ def main():
     
     # Initialize the model
     model = None
-    if "temp_api_key" in st.session_state:
+    if "temp_api_key" in st.session_state and "selected_model" in st.session_state:
         genai.configure(api_key=st.session_state.temp_api_key)
-        model = genai.GenerativeModel('gemini-pro')  # Correct model name
+        # Get model name from full path
+        model_name = st.session_state.selected_model.split('/')[-1] if '/' in st.session_state.selected_model else st.session_state.selected_model
+        model = genai.GenerativeModel(model_name)
+        st.success(f"Using model: {model_name}")
     else:
         model = initialize_gemini_api()
     
